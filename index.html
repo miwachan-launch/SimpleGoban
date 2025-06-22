@@ -1,0 +1,185 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>シンプルWeb碁盤</title>
+<style>
+  canvas { background: #fff; border: 1px solid #888; display: block; margin: 0 auto; }
+  body { font-family: sans-serif; text-align: center; }
+  button { margin: 4px; }
+</style>
+</head>
+<body>
+<h2>Web碁盤（9路/13路）</h2>
+<canvas id="board" width="520" height="520"></canvas>
+<div>
+  <button onclick="initBoard(9)">9路</button>
+  <button onclick="initBoard(13)">13路</button>
+  <button onclick="mode='play'">通常</button>
+  <button onclick="mode='remove'">石を削除</button>
+  <button onclick="undo()">取り消し</button>
+  <button onclick="passTurn()">パス</button>
+  <button onclick="mode='mark'">終局判定</button>
+  <button onclick="countTerritory()">集計</button>
+</div>
+<p id="info">モード：通常</p>
+<p id="score"></p>
+
+<script>
+const canvas = document.getElementById("board");
+const ctx = canvas.getContext("2d");
+let boardSize = 9;
+let board = [], territoryMarks = [], stoneMarks = [];
+let turn = 1;
+let mode = "play";
+let history = [];
+
+function initBoard(size) {
+  boardSize = size;
+  board = Array(size).fill().map(() => Array(size).fill(0));
+  territoryMarks = Array(size).fill().map(() => Array(size).fill(0));
+  stoneMarks = Array(size).fill().map(() => Array(size).fill(0));
+  turn = 1;
+  mode = "play";
+  history = [];
+  drawBoard();
+  document.getElementById("info").innerText = "モード：通常";
+  document.getElementById("score").innerText = "";
+}
+
+function drawBoard() {
+  const gap = canvas.width / (boardSize + 1);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = "#444";
+  for (let i = 1; i <= boardSize; i++) {
+    ctx.beginPath();
+    ctx.moveTo(gap, i * gap);
+    ctx.lineTo(boardSize * gap, i * gap);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(i * gap, gap);
+    ctx.lineTo(i * gap, boardSize * gap);
+    ctx.stroke();
+  }
+  for (let y = 0; y < boardSize; y++) {
+    for (let x = 0; x < boardSize; x++) {
+      const cx = (x + 1) * gap;
+      const cy = (y + 1) * gap;
+      if (stoneMarks[y][x] === 3) {
+        ctx.fillStyle = "rgba(0,0,255,0.3)";
+        ctx.beginPath();
+        ctx.arc(cx, cy, gap * 0.45, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+  }
+  for (let y = 0; y < boardSize; y++) {
+    for (let x = 0; x < boardSize; x++) {
+      const cx = (x + 1) * gap;
+      const cy = (y + 1) * gap;
+      if (board[y][x] === 1) {
+        ctx.fillStyle = "#000";
+        ctx.beginPath();
+        ctx.arc(cx, cy, gap * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+      } else if (board[y][x] === 2) {
+        ctx.fillStyle = "#fff";
+        ctx.beginPath();
+        ctx.arc(cx, cy, gap * 0.4, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+      }
+      if (stoneMarks[y][x] === 1 || stoneMarks[y][x] === 2) {
+        ctx.strokeStyle = "red";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(cx - gap * 0.2, cy - gap * 0.2);
+        ctx.lineTo(cx + gap * 0.2, cy + gap * 0.2);
+        ctx.moveTo(cx + gap * 0.2, cy - gap * 0.2);
+        ctx.lineTo(cx - gap * 0.2, cy + gap * 0.2);
+        ctx.stroke();
+        ctx.lineWidth = 1;
+      }
+      if (territoryMarks[y][x] === 1) {
+        ctx.fillStyle = "rgba(0,0,0,0.3)";
+        ctx.beginPath();
+        ctx.arc(cx, cy, gap * 0.15, 0, 2 * Math.PI);
+        ctx.fill();
+      } else if (territoryMarks[y][x] === 2) {
+        ctx.fillStyle = "rgba(255,255,255,0.6)";
+        ctx.beginPath();
+        ctx.arc(cx, cy, gap * 0.15, 0, 2 * Math.PI);
+        ctx.fill();
+      } else if (territoryMarks[y][x] === 3) {
+        ctx.fillStyle = "rgba(0,0,255,0.3)";
+        ctx.beginPath();
+        ctx.arc(cx, cy, gap * 0.15, 0, 2 * Math.PI);
+        ctx.fill();
+      }
+    }
+  }
+}
+
+canvas.addEventListener("click", e => {
+  const gap = canvas.width / (boardSize + 1);
+  const x = Math.round(e.offsetX / gap) - 1;
+  const y = Math.round(e.offsetY / gap) - 1;
+  if (x < 0 || y < 0 || x >= boardSize || y >= boardSize) return;
+  if (mode === "play") {
+    if (board[y][x] === 0) {
+      history.push(JSON.stringify(board));
+      board[y][x] = turn;
+      turn = 3 - turn;
+    }
+  } else if (mode === "remove") {
+    board[y][x] = 0;
+  } else if (mode === "mark") {
+    if (board[y][x] !== 0) {
+      stoneMarks[y][x] = (stoneMarks[y][x] + 1) % 4;
+    } else {
+      territoryMarks[y][x] = (territoryMarks[y][x] + 1) % 4;
+    }
+  }
+  drawBoard();
+});
+
+function passTurn() {
+  turn = 3 - turn;
+}
+
+function undo() {
+  if (history.length > 0) {
+    board = JSON.parse(history.pop());
+    turn = 3 - turn;
+    drawBoard();
+  }
+}
+
+function countTerritory() {
+  let black = 0, white = 6.5;
+  let sekiCount = 0;
+  for (let y = 0; y < boardSize; y++) {
+    for (let x = 0; x < boardSize; x++) {
+      if (territoryMarks[y][x] === 1) black++;
+      else if (territoryMarks[y][x] === 2) white++;
+      else if (territoryMarks[y][x] === 3) {
+        black += 0.5;
+        white += 0.5;
+      }
+      if (stoneMarks[y][x] === 1) white++;
+      else if (stoneMarks[y][x] === 2) black++;
+      else if (stoneMarks[y][x] === 3) {
+        black += 0.5;
+        white += 0.5;
+      }
+    }
+  }
+  document.getElementById("score").innerText =
+    `スコア：黒 ${black}、白 ${white}（コミ6.5）`;
+}
+
+initBoard(9);
+</script>
+</body>
+</html>
