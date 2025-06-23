@@ -25,4 +25,4 @@
 
 ## 📜 ライセンス
 
-MIT License
+Unicense
